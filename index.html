@@ -1180,9 +1180,9 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt })
     });
-    if (!res.ok) throw new Error("Server returned " + res.status);
-    const data = await res.json();
-    return data.imageUrl;
+  const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("Server returned " + res.status));
+    return data.reply;
   }
 
   // ----------------------------------------------------------------
