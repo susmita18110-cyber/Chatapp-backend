@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>C Chat</title>
+<style>
+  :root {
+    --bg: #f3f4fb;
+    --panel: #ffffff;
+    --ink: #1c1d2b;
+    --muted: #8b8da3;
+    --line: #e7e8f3;
+    --accent: #5b5ff0;
+    --user-bubble: #5b5ff0;
+    --user-text: #ffffff;
+    --bot-bubble: #ffffff;
+    --bot-text: #1c1d2b;
+    --ring: rgba(91, 95, 240, 0.22);
+    --radius-lg: 20px;
+    --radius-sm: 12px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --sidebar-bg: #17182b;
+    --sidebar-ink: #f1f1fa;
+    --sidebar-muted: #9496b8;
+    --sidebar-hover: #23244a;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #eef0fd 0%, var(--bg) 55%);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body.dark {
+    --bg: #14151f;
+    --panel: #1d1e2d;
+    --ink: #eceefb;
+    --muted: #8d8fb0;
+    --line: #2b2c40;
+    --bot-bubble: #24253a;
+    --bot-text: #eceefb;
+  }
+  body.dark { background: radial-gradient(1200px 600px at 50% -10%, #1c1d33 0%, var(--bg) 55%); }
+
+  body[dir="rtl"] .user .bubble { border-bottom-right-radius: var(--radius-lg); border-bottom-left-radius: 6px; }
+  body[dir="rtl"] .bot .bubble { border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: 6px; }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    z-index: 30;
+  }
+  body.dark header { background: rgba(29, 30, 45, 0.7); }
+
+  .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+  #menuBtn, #newChatBtn {
+    background: transparent;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+  #menuBtn:hover, #newChatBtn:hover { background: var(--line); }
+  #menuBtn svg, #newChatBtn svg { width: 20px; height: 20px; }
+
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #7477ff, #5b5ff0 60%, #4245c4);
+    box-shadow: 0 4px 14px rgba(91, 95, 240, 0.35);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .brand h1 {
+    font-size: 16px;
+    font-weight: 650;
+    margin: 0;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .header-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  #modeToggle {
+    position: relative;
+    display: flex;
+    width: 130px;
+    height: 34px;
+    background: var(--line);
+    border-radius: 999px;
+    padding: 3px;
+    cursor: pointer;
+    border: none;
+    font: inherit;
+  }
+  #modeToggle .thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: calc(50% - 3px);
+    height: 28px;
+    background: var(--panel);
+    border-radius: 999px;
+    box-shadow: 0 3px 10px rgba(28, 29, 43, 0.14);
+    transition: transform 320ms var(--ease);
+  }
+  #modeToggle.image .thumb { transform: translateX(100%); }
+  body[dir="rtl"] #modeToggle.image .thumb { transform: translateX(-100%); }
+  #modeToggle .opt {
+    position: relative; flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    transition: color 240ms var(--ease); z-index: 1; white-space: nowrap;
+  }
+  #modeToggle.chat .opt.chat, #modeToggle.image .opt.image { color: var(--ink); }
+
+  /* ---------- Sidebar ---------- */
+  #overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 40;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms var(--ease);
+  }
+  #overlay.show { opacity: 1; pointer-events: auto; }
+
+  #sidebar {
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    width: 270px;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-ink);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 320ms var(--ease);
+  }
+  body[dir="rtl"] #sidebar { left: auto; right: 0; transform: translateX(100%); }
+  #sidebar.open { transform: translateX(0); }
+
+  .sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .sidebar-header .brand h1 { color: var(--sidebar-ink); }
+  #closeSidebar {
+    background: transparent; border: none; color: var(--sidebar-muted);
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #closeSidebar:hover { background: var(--sidebar-hover); }
+
+  .sidebar-scroll { flex: 1; overflow-y: auto; padding: 10px 10px 0; }
+
+  .side-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--sidebar-ink);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font: inherit; font-size: 13.5px; font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: background 160ms var(--ease);
+  }
+  .side-btn:hover { background: var(--sidebar-hover); }
+  .side-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .side-section-title {
+    display: flex; align-items: center; justify-content: space-between;
+    color: var(--sidebar-muted);
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 6px 6px;
+    margin-top: 6px;
+  }
+  .side-section-title button {
+    background: transparent; border: none; color: var(--sidebar-muted);
+    cursor: pointer; width: 22px; height: 22px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .side-section-title button:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
+  .side-section-title button svg { width: 14px; height: 14px; }
+
+  .project-item, .chat-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--sidebar-ink);
+    cursor: pointer;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .project-item:hover, .chat-item:hover { background: var(--sidebar-hover); }
+  .chat-item.active { background: var(--sidebar-hover); }
+  .project-item svg, .chat-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--sidebar-muted); }
+  .chat-item-list { padding-left: 20px; margin-bottom: 6px; }
+  body[dir="rtl"] .chat-item-list { padding-left: 0; padding-right: 20px; }
+
+  .empty-hint { color: var(--sidebar-muted); font-size: 12px; padding: 4px 10px 10px; }
+
+  .sidebar-footer {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 10px;
+  }
+
+  /* ---------- Suggestions ---------- */
+  #suggestionWrap {
+    overflow: hidden;
+    transition: max-height 360ms var(--ease), opacity 280ms var(--ease), padding 360ms var(--ease);
+    max-height: 60px;
+    padding: 10px 0 4px;
+  }
+  #suggestionWrap.collapsed { max-height: 0; opacity: 0; padding: 0; }
+
+  #suggestions {
+    display: flex; gap: 8px; overflow-x: auto;
+    padding: 0 18px 6px;
+    scrollbar-width: none;
+  }
+  #suggestions::-webkit-scrollbar { display: none; }
+
+  .chip {
+    flex-shrink: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 15px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    color: var(--ink);
+    transition: transform 180ms var(--ease), border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+  }
+  .chip:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 6px 16px rgba(91, 95, 240, 0.18); }
+  .chip:active { transform: translateY(0) scale(0.97); }
+
+  /* ---------- Chat window ---------- */
+  #chatWindow {
+    flex: 1; overflow-y: auto;
+    padding: 8px 18px 12px;
+    display: flex; flex-direction: column; gap: 12px;
+    scroll-behavior: smooth;
+  }
+
+  .message-row {
+    display: flex; width: 100%;
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    animation: messageIn 420ms var(--ease) forwards;
+  }
+  @keyframes messageIn { to { opacity: 1; transform: translateY(0) scale(1); } }
+  .message-row.user { justify-content: flex-end; }
+  .message-row.bot { justify-content: flex-start; }
+
+  .bubble {
+    max-width: 74%;
+    padding: 11px 15px;
+    border-radius: var(--radius-lg);
+    font-size: 14.5px; line-height: 1.5;
+    white-space: pre-wrap;
+    box-shadow: 0 1px 2px rgba(28, 29, 43, 0.04);
+  }
+  .user .bubble {
+    background: linear-gradient(135deg, #6467f2, var(--user-bubble));
+    color: var(--user-text);
+    border-bottom-right-radius: 6px;
+  }
+  .bot .bubble {
+    background: var(--bot-bubble); color: var(--bot-text);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 6px;
+  }
+  .bubble img {
+    margin-top: 8px; max-width: 100%; border-radius: var(--radius-sm);
+    display: block; opacity: 0;
+    animation: imageIn 500ms var(--ease) forwards;
+    animation-delay: 60ms;
+  }
+  @keyframes imageIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+
+  .typing-row { display: flex; justify-content: flex-start; }
+  .typing-bubble {
+    display: flex; align-items: center; gap: 4px;
+    padding: 13px 16px;
+    background: var(--bot-bubble);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    border-bottom-left-radius: 6px;
+  }
+  .typing-bubble span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typing-bubble span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-bubble span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--muted); text-align: center; padding: 20px;
+    gap: 6px;
+  }
+  .empty-state .brand-mark { width: 44px; height: 44px; font-size: 18px; margin-bottom: 6px; }
+  .empty-state h2 { margin: 0; font-size: 17px; color: var(--ink); }
+  .empty-state p { margin: 0; font-size: 13px; }
+
+  /* ---------- Error banner ---------- */
+  #errorBanner {
+    max-height: 0; overflow: hidden; opacity: 0;
+    background: #fff1f1; color: #c0392b;
+    font-size: 12.5px; padding: 0 18px;
+    border-top: 1px solid #fbdada;
+    transition: max-height 300ms var(--ease), opacity 300ms var(--ease), padding 300ms var(--ease);
+  }
+  body.dark #errorBanner { background: #3a1f22; color: #ff9b9b; border-top-color: #5a2b2f; }
+  #errorBanner.show { max-height: 60px; opacity: 1; padding: 9px 18px; }
+
+  /* ---------- Input bar ---------- */
+  #inputBar {
+    display: flex; align-items: flex-end; gap: 10px;
+    padding: 12px 16px 16px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+  }
+  body.dark #inputBar { background: rgba(29, 30, 45, 0.85); }
+
+  #inputShell {
+    flex: 1; display: flex; align-items: center;
+    background: var(--panel);
+    border: 1.5px solid var(--line);
+    border-radius: 24px;
+    padding: 4px 6px 4px 16px;
+    transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+  }
+  body[dir="rtl"] #inputShell { padding: 4px 16px 4px 6px; }
+  #inputShell.focused { border-color: var(--accent); box-shadow: 0 0 0 5px var(--ring); }
+
+  #userInput {
+    flex: 1; border: none; outline: none; resize: none;
+    font: inherit; font-size: 14.5px; padding: 9px 0;
+    max-height: 120px; background: transparent; color: var(--ink);
+  }
+  #userInput::placeholder { color: var(--muted); }
+
+  #sendBtn {
+    background: var(--accent); border: none; color: white;
+    width: 38px; height: 38px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: transform 160ms var(--ease), background 200ms var(--ease), opacity 200ms var(--ease);
+  }
+  #sendBtn svg { width: 16px; height: 16px; transition: transform 200ms var(--ease); }
+  body[dir="rtl"] #sendBtn svg { transform: scaleX(-1); }
+  #sendBtn:hover:not(:disabled) { background: #4245c4; }
+  #sendBtn:active:not(:disabled) { transform: scale(0.9); }
+  #sendBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+  #sendBtn.pulse svg { animation: sendPulse 380ms var(--ease); }
+  @keyframes sendPulse { 0% { transform: scale(1); } 40% { transform: scale(0.7) rotate(-8deg); } 100% { transform: scale(1); } }
+
+  #chatWindow::-webkit-scrollbar { width: 6px; }
+  #chatWindow::-webkit-scrollbar-thumb { background: #d7d9ee; border-radius: 10px; }
+
+  /* ---------- Settings modal ---------- */
+  #settingsOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 60;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 240ms var(--ease);
+  }
+  #settingsOverlay.show { opacity: 1; pointer-events: auto; }
+
+  #settingsPanel {
+    background: var(--panel);
+    color: var(--ink);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 20px 20px 0 0;
+    padding: 18px 18px 26px;
+    transform: translateY(30px);
+    opacity: 0;
+    transition: transform 300ms var(--ease), opacity 300ms var(--ease);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  #settingsOverlay.show #settingsPanel { transform: translateY(0); opacity: 1; }
+
+  .settings-title {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .settings-title h2 { margin: 0; font-size: 16px; }
+  #closeSettings {
+    background: var(--line); border: none; width: 28px; height: 28px;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--ink);
+  }
+
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 2px;
+    border-bottom: 1px solid var(--line);
+    gap: 12px;
+  }
+  .settings-row:last-of-type { border-bottom: none; }
+  .settings-label { font-size: 13.5px; font-weight: 500; }
+  .settings-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  #langSelect {
+    appearance: none; -webkit-appearance: none;
+    background: var(--line); border: none; border-radius: 10px;
+    padding: 8px 28px 8px 12px;
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+    cursor: pointer;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%238b8da3"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  body[dir="rtl"] #langSelect { padding: 8px 12px 8px 28px; background-position: left 10px center; }
+
+  .toggle-switch {
+    position: relative; width: 44px; height: 25px;
+    background: var(--line); border-radius: 999px; border: none; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle-switch .knob {
+    position: absolute; top: 3px; left: 3px;
+    width: 19px; height: 19px; border-radius: 50%;
+    background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    transition: transform 220ms var(--ease);
+  }
+  .toggle-switch.on { background: var(--accent); }
+  .toggle-switch.on .knob { transform: translateX(19px); }
+  body[dir="rtl"] .toggle-switch.on .knob { transform: translateX(-19px); }
+
+  .settings-danger {
+    width: 100%;
+    background: transparent;
+    border: 1.5px solid #e57373;
+    color: #d32f2f;
+    padding: 10px;
+    border-radius: 10px;
+    font: inherit; font-weight: 600; font-size: 13px;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+  .settings-danger:hover { background: rgba(229, 115, 115, 0.08); }
+
+  .about-text { font-size: 12px; color: var(--muted); text-align: center; margin-top: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div id="overlay"></div>
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="brand">
+      <div class="brand-mark">C</div>
+      <h1 id="sidebarBrand">C Chat</h1>
+    </div>
+    <button id="closeSidebar" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="sidebar-scroll">
+    <button class="side-btn" id="newChatSideBtn">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="newChatLabel">New chat</span>
+    </button>
+
+    <div class="side-section-title">
+      <span id="projectsLabel">Projects</span>
+      <button id="addProjectBtn" aria-label="Add project">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="projectList"></div>
+
+    <div class="side-section-title">
+      <span id="chatsLabel">Chats</span>
+    </div>
+    <div id="chatList"></div>
+  </div>
+  <div class="sidebar-footer">
+    <button class="side-btn" id="openSettingsBtn" style="margin-bottom:0;">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3.4a2 2 0 110-4h.09A1.65 1.65 0 005 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 5a1.65 1.65 0 001-1.51V3.4a2 2 0 114 0v.09A1.65 1.65 0 0015 5a1.65 1.65 0 001.82.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span id="settingsLabel">Settings</span>
+    </button>
+  </div>
+</aside>
+
+<header>
+  <div class="header-left">
+    <button id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <div class="brand-mark">C</div>
+      <h1 id="brandTitle">C Chat</h1>
+    </div>
+  </div>
+  <div class="header-controls">
+    <button id="modeToggle" class="chat">
+      <div class="thumb"></div>
+      <span class="opt chat" id="modeChatLabel">Chat</span>
+      <span class="opt image" id="modeImageLabel">Image</span>
+    </button>
+    <button id="newChatBtn" aria-label="New chat">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="suggestionWrap">
+  <div id="suggestions"></div>
+</div>
+
+<div id="chatWindow"></div>
+
+<div id="errorBanner"></div>
+
+<div id="inputBar">
+  <div id="inputShell">
+    <textarea id="userInput" rows="1"></textarea>
+  </div>
+  <button id="sendBtn" aria-label="Send">
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 12L20 4L14 20L11 13L4 12Z" fill="currentColor"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Settings modal -->
+<div id="settingsOverlay">
+  <div id="settingsPanel">
+    <div class="settings-title">
+      <h2 id="settingsTitle">Settings</h2>
+      <button id="closeSettings" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" id="languageLabel">Language</div>
+      </div>
+      <select id="langSelect"></select>
+    </div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" id="darkModeLabel">Dark mode</div>
+      </div>
+      <button class="toggle-switch" id="darkToggle"><div class="knob"></div></button>
+    </div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" id="backendLabel">Backend connection</div>
+        <div class="settings-sub" id="backendSub">Not connected — using simulated replies</div>
+      </div>
+    </div>
+
+    <button class="settings-danger" id="clearChatBtn">Clear this conversation</button>
+
+    <div class="about-text" id="aboutText">C Chat — a simple AI chat &amp; image assistant.</div>
+  </div>
+</div>
+
+<script>
+  // ----------------------------------------------------------------
+  // CONFIG
+  // ----------------------------------------------------------------
+  const CONFIG = {
+    BACKEND_BASE_URL: "https://chatapp-backend-gray-five.vercel.app",
+    CHAT_ENDPOINT: "/api/chat",
+    IMAGE_ENDPOINT: "/api/generate-image",
+    STATE_ENDPOINT: "/api/state",
+    DEMO_MODE_FALLBACK: false
+  };
+
+  // ----------------------------------------------------------------
+  // TRANSLATIONS
+  // ----------------------------------------------------------------
+  const TRANSLATIONS = {
+    en: { name: "English", dir: "ltr", brand: "C Chat", modeChat: "Chat", modeImage: "Image",
+      placeholderChat: "Type a message...", placeholderImage: "Describe an image to generate...",
+      newChat: "New chat", projects: "Projects", chats: "Chats", settings: "Settings",
+      language: "Language", darkMode: "Dark mode", backend: "Backend connection",
+      backendConnected: "Connected", backendNotConnected: "Not connected — using simulated replies",
+      clearChat: "Clear this conversation", about: "C Chat — a simple AI chat & image assistant.",
+      newProjectPrompt: "Project name:", noProjects: "No projects yet", untitledChat: "New chat",
+      suggestions: ["Give me 3 productivity tips", "Help me plan my day", "Explain a concept simply", "Suggest a healthy recipe", "Give me writing tips", "Motivate me today"],
+      welcomeTitle: "Where should we begin?", welcomeSub: "Ask anything, or generate an image.",
+      demoReply: t => `This is a simulated reply (no backend connected). You said: "${t}"`,
+      imageCaption: "Here's your generated image:",
+      errBackend: "Backend not reachable — showing a simulated reply. Set BACKEND_BASE_URL to connect a real backend.",
+      errRequest: m => `Request failed: ${m}` },
+
+    es: { name: "Español", dir: "ltr", brand: "C Chat", modeChat: "Chat", modeImage: "Imagen",
+      placeholderChat: "Escribe un mensaje...", placeholderImage: "Describe una imagen para generar...",
+      newChat: "Nuevo chat", projects: "Proyectos", chats: "Chats", settings: "Configuración",
+      language: "Idioma", darkMode: "Modo oscuro", backend: "Conexión del backend",
+      backendConnected: "Conectado", backendNotConnected: "No conectado — mostrando respuestas simuladas",
+      clearChat: "Borrar esta conversación", about: "C Chat — un asistente simple de chat e imágenes con IA.",
+      newProjectPrompt: "Nombre del proyecto:", noProjects: "Aún no hay proyectos", untitledChat: "Nuevo chat",
+      suggestions: ["Dame 3 consejos de productividad", "Ayúdame a planear mi día", "Explica un concepto de forma simple", "Sugiere una receta saludable", "Dame consejos de escritura", "Motívame hoy"],
+      welcomeTitle: "¿Por dónde empezamos?", welcomeSub: "Pregunta lo que sea, o genera una imagen.",
+      demoReply: t => `Esta es una respuesta simulada (sin backend conectado). Dijiste: "${t}"`,
+      imageCaption: "Aquí está tu imagen generada:",
+      errBackend: "No se pudo conectar con el backend — mostrando una respuesta simulada. Configura BACKEND_BASE_URL para conectar un backend real.",
+      errRequest: m => `La solicitud falló: ${m}` },
+
+    fr: { name: "Français", dir: "ltr", brand: "C Chat", modeChat: "Chat", modeImage: "Image",
+      placeholderChat: "Écrivez un message...", placeholderImage: "Décrivez une image à générer...",
+      newChat: "Nouveau chat", projects: "Projets", chats: "Discussions", settings: "Paramètres",
+      language: "Langue", darkMode: "Mode sombre", backend: "Connexion au backend",
+      backendConnected: "Connecté", backendNotConnected: "Non connecté — réponses simulées affichées",
+      clearChat: "Effacer cette conversation", about: "C Chat — un assistant simple de chat et d'images par IA.",
+      newProjectPrompt: "Nom du projet :", noProjects: "Aucun projet pour l'instant", untitledChat: "Nouveau chat",
+      suggestions: ["Donne-moi 3 astuces de productivité", "Aide-moi à planifier ma journée", "Explique un concept simplement", "Suggère une recette saine", "Donne-moi des conseils d'écriture", "Motive-moi aujourd'hui"],
+      welcomeTitle: "Par où commence-t-on ?", welcomeSub: "Posez une question, ou générez une image.",
+      demoReply: t => `Ceci est une réponse simulée (aucun backend connecté). Vous avez dit : "${t}"`,
+      imageCaption: "Voici votre image générée :",
+      errBackend: "Backend injoignable — affichage d'une réponse simulée. Définissez BACKEND_BASE_URL pour connecter un vrai backend.",
+      errRequest: m => `Échec de la requête : ${m}` },
+
+    de: { name: "Deutsch", dir: "ltr", brand: "C Chat", modeChat: "Chat", modeImage: "Bild",
+      placeholderChat: "Nachricht eingeben...", placeholderImage: "Beschreibe ein zu erstellendes Bild...",
+      newChat: "Neuer Chat", projects: "Projekte", chats: "Chats", settings: "Einstellungen",
+      language: "Sprache", darkMode: "Dunkelmodus", backend: "Backend-Verbindung",
+      backendConnected: "Verbunden", backendNotConnected: "Nicht verbunden — simulierte Antworten werden angezeigt",
+      clearChat: "Diese Unterhaltung löschen", about: "C Chat — ein einfacher KI-Chat- und Bildassistent.",
+      newProjectPrompt: "Projektname:", noProjects: "Noch keine Projekte", untitledChat: "Neuer Chat",
+      suggestions: ["Gib mir 3 Produktivitätstipps", "Hilf mir, meinen Tag zu planen", "Erkläre ein Konzept einfach", "Schlage ein gesundes Rezept vor", "Gib mir Schreibtipps", "Motiviere mich heute"],
+      welcomeTitle: "Womit fangen wir an?", welcomeSub: "Frag alles, oder erstelle ein Bild.",
+      demoReply: t => `Dies ist eine simulierte Antwort (kein Backend verbunden). Du hast gesagt: "${t}"`,
+      imageCaption: "Hier ist dein generiertes Bild:",
+      errBackend: "Backend nicht erreichbar — simulierte Antwort wird angezeigt. Setze BACKEND_BASE_URL, um ein echtes Backend zu verbinden.",
+      errRequest: m => `Anfrage fehlgeschlagen: ${m}` },
+
+    pt: { name: "Português", dir: "ltr", brand: "C Chat", modeChat: "Chat", modeImage: "Imagem",
+      placeholderChat: "Digite uma mensagem...", placeholderImage: "Descreva uma imagem para gerar...",
+      newChat: "Novo chat", projects: "Projetos", chats: "Chats", settings: "Configurações",
+      language: "Idioma", darkMode: "Modo escuro", backend: "Conexão com o backend",
+      backendConnected: "Conectado", backendNotConnected: "Não conectado — exibindo respostas simuladas",
+      clearChat: "Limpar esta conversa", about: "C Chat — um assistente simples de chat e imagens com IA.",
+      newProjectPrompt: "Nome do projeto:", noProjects: "Nenhum projeto ainda", untitledChat: "Novo chat",
+      suggestions: ["Dê-me 3 dicas de produtividade", "Ajude-me a planejar meu dia", "Explique um conceito de forma simples", "Sugira uma receita saudável", "Dê-me dicas de escrita", "Me motive hoje"],
+      welcomeTitle: "Por onde começamos?", welcomeSub: "Pergunte qualquer coisa, ou gere uma imagem.",
+      demoReply: t => `Esta é uma resposta simulada (nenhum backend conectado). Você disse: "${t}"`,
+      imageCaption: "Aqui está sua imagem gerada:",
+      errBackend: "Backend inacessível — exibindo uma resposta simulada. Defina BACKEND_BASE_URL para conectar um backend real.",
+      errRequest: m => `Falha na solicitação: ${m}` },
+
+    hi: { name: "हिन्दी", dir: "ltr", brand: "C Chat", modeChat: "चैट", modeImage: "छवि",
+      placeholderChat: "संदेश लिखें...", placeholderImage: "बनाने के लिए छवि का वर्णन करें...",
+      newChat: "नई चैट", projects: "प्रोजेक्ट्स", chats: "चैट्स", settings: "सेटिंग्स",
+      language: "भाषा", darkMode: "डार्क मोड", backend: "बैकएंड कनेक्शन",
+      backendConnected: "जुड़ा हुआ", backendNotConnected: "जुड़ा नहीं है — सिम्युलेटेड जवाब दिखाए जा रहे हैं",
+      clearChat: "यह बातचीत साफ़ करें", about: "C Chat — एक साधारण AI चैट और छवि सहायक।",
+      newProjectPrompt: "प्रोजेक्ट का नाम:", noProjects: "अभी तक कोई प्रोजेक्ट नहीं", untitledChat: "नई चैट",
+      suggestions: ["मुझे 3 उत्पादकता सुझाव दें", "मेरा दिन योजना बनाने में मदद करें", "एक अवधारणा को सरलता से समझाएं", "एक स्वस्थ नुस्खा सुझाएं", "मुझे लेखन सुझाव दें", "आज मुझे प्रेरित करें"],
+      welcomeTitle: "कहाँ से शुरू करें?", welcomeSub: "कुछ भी पूछें, या एक छवि बनाएं।",
+      demoReply: t => `यह एक सिम्युलेटेड जवाब है (कोई बैकएंड कनेक्ट नहीं है)। आपने कहा: "${t}"`,
+      imageCaption: "यह रही आपकी बनाई गई छवि:",
+      errBackend: "बैकएंड तक नहीं पहुंचा जा सका — सिम्युलेटेड जवाब दिखाया जा रहा है। असली बैकएंड जोड़ने के लिए BACKEND_BASE_URL सेट करें।",
+      errRequest: m => `अनुरोध विफल: ${m}` },
+
+    zh: { name: "中文", dir: "ltr", brand: "C Chat", modeChat: "聊天", modeImage: "图像",
+      placeholderChat: "输入消息...", placeholderImage: "描述要生成的图像...",
+      newChat: "新聊天", projects: "项目", chats: "聊天记录", settings: "设置",
+      language: "语言", darkMode: "深色模式", backend: "后端连接",
+      backendConnected: "已连接", backendNotConnected: "未连接 — 正在显示模拟回复",
+      clearChat: "清除此对话", about: "C Chat — 一个简单的 AI 聊天和图像助手。",
+      newProjectPrompt: "项目名称：", noProjects: "暂无项目", untitledChat: "新聊天",
+      suggestions: ["给我3个提高效率的技巧", "帮我规划今天的日程", "简单解释一个概念", "推荐一个健康食谱", "给我一些写作技巧", "今天激励我一下"],
+      welcomeTitle: "从哪里开始呢？", welcomeSub: "问任何问题，或生成一张图像。",
+      demoReply: t => `这是一个模拟回复（未连接后端）。你说的是："${t}"`,
+      imageCaption: "这是为你生成的图像：",
+      errBackend: "无法连接后端——正在显示模拟回复。请设置 BACKEND_BASE_URL 以连接真实后端。",
+      errRequest: m => `请求失败：${m}` },
+
+    ja: { name: "日本語", dir: "ltr", brand: "C Chat", modeChat: "チャット", modeImage: "画像",
+      placeholderChat: "メッセージを入力...", placeholderImage: "生成したい画像を説明してください...",
+      newChat: "新しいチャット", projects: "プロジェクト", chats: "チャット", settings: "設定",
+      language: "言語", darkMode: "ダークモード", backend: "バックエンド接続",
+      backendConnected: "接続済み", backendNotConnected: "未接続 — シミュレートされた返信を表示中",
+      clearChat: "この会話を消去", about: "C Chat — シンプルなAIチャット＆画像アシスタント。",
+      newProjectPrompt: "プロジェクト名：", noProjects: "まだプロジェクトはありません", untitledChat: "新しいチャット",
+      suggestions: ["生産性向上のコツを3つ教えて", "今日の予定を立てるのを手伝って", "ある概念を簡単に説明して", "健康的なレシピを提案して", "文章のコツを教えて", "今日のやる気を出させて"],
+      welcomeTitle: "何から始めますか？", welcomeSub: "何でも聞いてください。画像も生成できます。",
+      demoReply: t => `これはシミュレートされた返信です（バックエンド未接続）。あなたの入力: "${t}"`,
+      imageCaption: "生成された画像はこちらです：",
+      errBackend: "バックエンドに接続できません — シミュレートされた返信を表示しています。実際のバックエンドに接続するには BACKEND_BASE_URL を設定してください。",
+      errRequest: m => `リクエストに失敗しました: ${m}` },
+
+    ar: { name: "العربية", dir: "rtl", brand: "C Chat", modeChat: "دردشة", modeImage: "صورة",
+      placeholderChat: "اكتب رسالة...", placeholderImage: "صف صورة لإنشائها...",
+      newChat: "دردشة جديدة", projects: "المشاريع", chats: "الدردشات", settings: "الإعدادات",
+      language: "اللغة", darkMode: "الوضع الداكن", backend: "اتصال الخادم الخلفي",
+      backendConnected: "متصل", backendNotConnected: "غير متصل — يتم عرض ردود تجريبية",
+      clearChat: "مسح هذه المحادثة", about: "C Chat — مساعد دردشة وصور بسيط بالذكاء الاصطناعي.",
+      newProjectPrompt: "اسم المشروع:", noProjects: "لا توجد مشاريع بعد", untitledChat: "دردشة جديدة",
+      suggestions: ["أعطني 3 نصائح للإنتاجية", "ساعدني في تخطيط يومي", "اشرح مفهومًا ببساطة", "اقترح وصفة صحية", "أعطني نصائح للكتابة", "حفّزني اليوم"],
+      welcomeTitle: "من أين نبدأ؟", welcomeSub: "اسأل أي شيء، أو أنشئ صورة.",
+      demoReply: t => `هذا رد تجريبي (لا يوجد خادم خلفي متصل). لقد قلت: "${t}"`,
+      imageCaption: "إليك صورتك التي تم إنشاؤها:",
+      errBackend: "تعذر الوصول إلى الخادم الخلفي — يتم عرض رد تجريبي. عيّن BACKEND_BASE_URL للاتصال بخادم حقيقي.",
+      errRequest: m => `فشل الطلب: ${m}` },
+
+    ru: { name: "Русский", dir: "ltr", brand: "C Chat", modeChat: "Чат", modeImage: "Изображение",
+      placeholderChat: "Введите сообщение...", placeholderImage: "Опишите изображение для генерации...",
+      newChat: "Новый чат", projects: "Проекты", chats: "Чаты", settings: "Настройки",
+      language: "Язык", darkMode: "Тёмная тема", backend: "Подключение к бэкенду",
+      backendConnected: "Подключено", backendNotConnected: "Не подключено — показаны смоделированные ответы",
+      clearChat: "Очистить этот диалог", about: "C Chat — простой ИИ-помощник для чата и изображений.",
+      newProjectPrompt: "Название проекта:", noProjects: "Проектов пока нет", untitledChat: "Новый чат",
+      suggestions: ["Дай мне 3 совета по продуктивности", "Помоги спланировать мой день", "Объясни концепцию простыми словами", "Предложи полезный рецепт", "Дай советы по письму", "Мотивируй меня сегодня"],
+      welcomeTitle: "С чего начнём?", welcomeSub: "Спросите что угодно или создайте изображение.",
+      demoReply: t => `Это смоделированный ответ (бэкенд не подключён). Вы сказали: "${t}"`,
+      imageCaption: "Вот ваше сгенерированное изображение:",
+      errBackend: "Не удалось подключиться к бэкенду — показан смоделированный ответ. Укажите BACKEND_BASE_URL, чтобы подключить настоящий бэкенд.",
+      errRequest: m => `Ошибка запроса: ${m}` },
+
+    bn: { name: "বাংলা", dir: "ltr", brand: "C Chat", modeChat: "চ্যাট", modeImage: "ছবি",
+      placeholderChat: "একটি বার্তা লিখুন...", placeholderImage: "তৈরি করার জন্য একটি ছবির বর্ণনা দিন...",
+      newChat: "নতুন চ্যাট", projects: "প্রজেক্ট", chats: "চ্যাটসমূহ", settings: "সেটিংস",
+      language: "ভাষা", darkMode: "ডার্ক মোড", backend: "ব্যাকএন্ড সংযোগ",
+      backendConnected: "সংযুক্ত", backendNotConnected: "সংযুক্ত নেই — সিমুলেটেড উত্তর দেখানো হচ্ছে",
+      clearChat: "এই কথোপকথন মুছুন", about: "C Chat — একটি সাধারণ AI চ্যাট ও ছবি তৈরির সহকারী।",
+      newProjectPrompt: "প্রজেক্টের নাম:", noProjects: "এখনো কোনো প্রজেক্ট নেই", untitledChat: "নতুন চ্যাট",
+      suggestions: ["আমাকে ৩টি উৎপাদনশীলতা টিপস দিন", "আমার দিনটি পরিকল্পনা করতে সাহায্য করুন", "একটি ধারণা সহজভাবে ব্যাখ্যা করুন", "একটি স্বাস্থ্যকর রেসিপি সাজেস্ট করুন", "আমাকে লেখার টিপস দিন", "আজ আমাকে অনুপ্রাণিত করুন"],
+      welcomeTitle: "কোথা থেকে শুরু করবেন?", welcomeSub: "যেকোনো কিছু জিজ্ঞাসা করুন, অথবা একটি ছবি তৈরি করুন।",
+      demoReply: t => `এটি একটি সিমুলেটেড উত্তর (কোনো ব্যাকএন্ড সংযুক্ত নেই)। আপনি বলেছেন: "${t}"`,
+      imageCaption: "এই যে আপনার তৈরি করা ছবি:",
+      errBackend: "ব্যাকএন্ডে পৌঁছানো যায়নি — একটি সিমুলেটেড উত্তর দেখানো হচ্ছে। একটি আসল ব্যাকএন্ড সংযুক্ত করতে BACKEND_BASE_URL সেট করুন।",
+      errRequest: m => `অনুরোধ ব্যর্থ হয়েছে: ${m}` }
+  };
+
+  let currentLang = detectInitialLang();
+  let darkMode = false;
+
+  // ----------------------------------------------------------------
+  // MULTI-CHAT / PROJECT STATE (in-memory only, resets on reload)
+  // ----------------------------------------------------------------
+  let projects = [];       // { id, name }
+  let conversations = [];  // { id, title, projectId, messages: [] }
+  let activeConversationId = null;
+  let imageMode = false;
+  let isLoading = false;
+  let uidCounter = 1;
+  function uid() { return "id" + (uidCounter++); }
+
+  function detectInitialLang() {
+    const nav = (navigator.language || "en").slice(0, 2).toLowerCase();
+    return TRANSLATIONS[nav] ? nav : "en";
+  }
+
+  function t() { return TRANSLATIONS[currentLang]; }
+
+  function activeConversation() {
+    return conversations.find(c => c.id === activeConversationId) || null;
+  }
+
+  function createConversation(projectId = null) {
+    const conv = { id: uid(), title: t().untitledChat, projectId, messages: [] };
+    conversations.unshift(conv);
+    activeConversationId = conv.id;
+    return conv;
+  }
+
+  // ----------------------------------------------------------------
+  // DOM REFS
+  // ----------------------------------------------------------------
+  const chatWindow = document.getElementById("chatWindow");
+  const suggestionsEl = document.getElementById("suggestions");
+  const suggestionWrap = document.getElementById("suggestionWrap");
+  const userInput = document.getElementById("userInput");
+  const inputShell = document.getElementById("inputShell");
+  const sendBtn = document.getElementById("sendBtn");
+  const modeToggle = document.getElementById("modeToggle");
+  const modeChatLabel = document.getElementById("modeChatLabel");
+  const modeImageLabel = document.getElementById("modeImageLabel");
+  const errorBanner = document.getElementById("errorBanner");
+  const langSelect = document.getElementById("langSelect");
+  const brandTitle = document.getElementById("brandTitle");
+  const sidebarBrand = document.getElementById("sidebarBrand");
+
+  const overlay = document.getElementById("overlay");
+  const sidebar = document.getElementById("sidebar");
+  const menuBtn = document.getElementById("menuBtn");
+  const closeSidebar = document.getElementById("closeSidebar");
+  const newChatBtn = document.getElementById("newChatBtn");
+  const newChatSideBtn = document.getElementById("newChatSideBtn");
+  const newChatLabel = document.getElementById("newChatLabel");
+  const projectsLabel = document.getElementById("projectsLabel");
+  const chatsLabel = document.getElementById("chatsLabel");
+  const settingsLabel = document.getElementById("settingsLabel");
+  const projectList = document.getElementById("projectList");
+  const chatList = document.getElementById("chatList");
+  const addProjectBtn = document.getElementById("addProjectBtn");
+  const openSettingsBtn = document.getElementById("openSettingsBtn");
+
+  const settingsOverlay = document.getElementById("settingsOverlay");
+  const closeSettings = document.getElementById("closeSettings");
+  const settingsTitle = document.getElementById("settingsTitle");
+  const languageLabel = document.getElementById("languageLabel");
+  const darkModeLabel = document.getElementById("darkModeLabel");
+  const darkToggle = document.getElementById("darkToggle");
+  const backendLabel = document.getElementById("backendLabel");
+  const backendSub = document.getElementById("backendSub");
+  const clearChatBtn = document.getElementById("clearChatBtn");
+  const aboutText = document.getElementById("aboutText");
+
+  // ----------------------------------------------------------------
+  // LANGUAGE / THEME
+  // ----------------------------------------------------------------
+  function populateLangSelect() {
+    langSelect.innerHTML = "";
+    Object.keys(TRANSLATIONS).forEach(code => {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = TRANSLATIONS[code].name;
+      if (code === currentLang) opt.selected = true;
+      langSelect.appendChild(opt);
+    });
+  }
+
+  function applyLanguage() {
+    const dict = t();
+    document.documentElement.lang = currentLang;
+    document.body.dir = dict.dir;
+    brandTitle.textContent = dict.brand;
+    sidebarBrand.textContent = dict.brand;
+    modeChatLabel.textContent = dict.modeChat;
+    modeImageLabel.textContent = dict.modeImage;
+    userInput.placeholder = imageMode ? dict.placeholderImage : dict.placeholderChat;
+    newChatLabel.textContent = dict.newChat;
+    projectsLabel.textContent = dict.projects;
+    chatsLabel.textContent = dict.chats;
+    settingsLabel.textContent = dict.settings;
+    settingsTitle.textContent = dict.settings;
+    languageLabel.textContent = dict.language;
+    darkModeLabel.textContent = dict.darkMode;
+    backendLabel.textContent = dict.backend;
+    backendSub.textContent = isBackendConfigured() ? dict.backendConnected : dict.backendNotConnected;
+    clearChatBtn.textContent = dict.clearChat;
+    aboutText.textContent = dict.about;
+    renderSuggestions();
+    renderSidebarLists();
+    renderActiveConversation();
+  }
+
+  function isBackendConfigured() {
+    return CONFIG.BACKEND_BASE_URL && !CONFIG.BACKEND_BASE_URL.includes("your-backend.example.com");
+  }
+
+  // ----------------------------------------------------------------
+  // DATABASE SYNC (Supabase, via the Vercel /api/state endpoint)
+  // ----------------------------------------------------------------
+  let saveTimer = null;
+  function scheduleSave() {
+    if (!isBackendConfigured()) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 600);
+  }
+
+  async function saveState() {
+    try {
+      await fetch(CONFIG.BACKEND_BASE_URL + CONFIG.STATE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projects, conversations })
+      });
+    } catch (err) {
+      // Silent — local state still works even if saving to the DB fails
+      console.warn("Save to database failed:", err);
+    }
+  }
+
+  async function loadState() {
+    if (!isBackendConfigured()) return false;
+    try {
+      const res = await fetch(CONFIG.BACKEND_BASE_URL + CONFIG.STATE_ENDPOINT);
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data && Array.isArray(data.conversations)) {
+        projects = data.projects || [];
+        conversations = data.conversations || [];
+        return conversations.length > 0;
+      }
+      return false;
+    } catch (err) {
+      console.warn("Load from database failed:", err);
+      return false;
+    }
+  }
+
+  langSelect.addEventListener("change", () => {
+    currentLang = langSelect.value;
+    applyLanguage();
+  });
+
+  darkToggle.addEventListener("click", () => {
+    darkMode = !darkMode;
+    document.body.classList.toggle("dark", darkMode);
+    darkToggle.classList.toggle("on", darkMode);
+  });
+
+  // ----------------------------------------------------------------
+  // SIDEBAR
+  // ----------------------------------------------------------------
+  function openSidebar() { sidebar.classList.add("open"); overlay.classList.add("show"); }
+  function closeSidebarFn() { sidebar.classList.remove("open"); overlay.classList.remove("show"); }
+  menuBtn.addEventListener("click", openSidebar);
+  closeSidebar.addEventListener("click", closeSidebarFn);
+  overlay.addEventListener("click", closeSidebarFn);
+
+  function renderSidebarLists() {
+    // Projects
+    projectList.innerHTML = "";
+    if (projects.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = t().noProjects;
+      projectList.appendChild(hint);
+    } else {
+      projects.forEach(proj => {
+        const item = document.createElement("div");
+        item.className = "project-item";
+        item.innerHTML = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke="currentColor" stroke-width="1.6"/></svg><span></span>';
+        item.querySelector("span").textContent = proj.name;
+        item.addEventListener("click", () => {
+          const conv = createConversation(proj.id);
+          renderSidebarLists();
+          renderActiveConversation();
+          closeSidebarFn();
+          scheduleSave();
+        });
+        projectList.appendChild(item);
+
+        const projConvs = conversations.filter(c => c.projectId === proj.id);
+        if (projConvs.length) {
+          const wrap = document.createElement("div");
+          wrap.className = "chat-item-list";
+          projConvs.forEach(conv => wrap.appendChild(buildChatItem(conv)));
+          projectList.appendChild(wrap);
+        }
+      });
+    }
+
+    // Chats not in a project
+    chatList.innerHTML = "";
+    const looseConvs = conversations.filter(c => !c.projectId);
+    if (looseConvs.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "—";
+      chatList.appendChild(hint);
+    } else {
+      looseConvs.forEach(conv => chatList.appendChild(buildChatItem(conv)));
+    }
+  }
+
+  function buildChatItem(conv) {
+    const item = document.createElement("div");
+    item.className = "chat-item" + (conv.id === activeConversationId ? " active" : "");
+    item.innerHTML = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke="currentColor" stroke-width="1.6"/></svg><span></span>';
+    item.querySelector("span").textContent = conv.title;
+    item.addEventListener("click", () => {
+      activeConversationId = conv.id;
+      renderSidebarLists();
+      renderActiveConversation();
+      closeSidebarFn();
+    });
+    return item;
+  }
+
+  addProjectBtn.addEventListener("click", () => {
+    const name = prompt(t().newProjectPrompt);
+    if (name && name.trim()) {
+      projects.push({ id: uid(), name: name.trim() });
+      renderSidebarLists();
+      scheduleSave();
+    }
+  });
+
+  function startNewChat() {
+    createConversation(null);
+    renderSidebarLists();
+    renderActiveConversation();
+    closeSidebarFn();
+    scheduleSave();
+  }
+  newChatBtn.addEventListener("click", startNewChat);
+  newChatSideBtn.addEventListener("click", startNewChat);
+
+  // ----------------------------------------------------------------
+  // SETTINGS MODAL
+  // ----------------------------------------------------------------
+  function openSettings() { settingsOverlay.classList.add("show"); }
+  function closeSettingsFn() { settingsOverlay.classList.remove("show"); }
+  openSettingsBtn.addEventListener("click", () => { openSettings(); closeSidebarFn(); });
+  closeSettings.addEventListener("click", closeSettingsFn);
+  settingsOverlay.addEventListener("click", e => { if (e.target === settingsOverlay) closeSettingsFn(); });
+
+  clearChatBtn.addEventListener("click", () => {
+    const conv = activeConversation();
+    if (conv) {
+      conv.messages = [];
+      renderActiveConversation();
+      scheduleSave();
+    }
+    closeSettingsFn();
+  });
+
+  // ----------------------------------------------------------------
+  // RENDER — CHAT AREA
+  // ----------------------------------------------------------------
+  function renderSuggestions() {
+    suggestionsEl.innerHTML = "";
+    t().suggestions.forEach(text => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.textContent = text;
+      chip.onclick = () => {
+        userInput.value = text;
+        autoResize();
+        userInput.focus();
+      };
+      suggestionsEl.appendChild(chip);
+    });
+    const conv = activeConversation();
+    suggestionWrap.classList.toggle("collapsed", !!(conv && conv.messages.length > 0));
+  }
+
+  function renderActiveConversation() {
+    chatWindow.innerHTML = "";
+    const conv = activeConversation();
+    if (!conv || conv.messages.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.innerHTML = `<div class="brand-mark">C</div><h2></h2><p></p>`;
+      empty.querySelector("h2").textContent = t().welcomeTitle;
+      empty.querySelector("p").textContent = t().welcomeSub;
+      chatWindow.appendChild(empty);
+    } else {
+      conv.messages.forEach(msg => appendMessageEl(msg, false));
+    }
+    renderSuggestions();
+    scrollToBottom();
+  }
+
+  function appendMessageEl(msg, animate = true) {
+    const row = document.createElement("div");
+    row.className = "message-row " + (msg.isUser ? "user" : "bot");
+    if (!animate) row.style.animation = "none", row.style.opacity = "1", row.style.transform = "none";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = msg.text;
+
+    if (msg.imageUrl) {
+      const img = document.createElement("img");
+      img.src = msg.imageUrl;
+      img.alt = "";
+      bubble.appendChild(img);
+    }
+
+    row.appendChild(bubble);
+    chatWindow.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  let typingRow = null;
+  function showTyping() {
+    typingRow = document.createElement("div");
+    typingRow.className = "message-row typing-row";
+    typingRow.innerHTML = '<div class="typing-bubble"><span></span><span></span><span></span></div>';
+    chatWindow.appendChild(typingRow);
+    scrollToBottom();
+  }
+  function hideTyping() {
+    if (typingRow) { typingRow.remove(); typingRow = null; }
+  }
+
+  function scrollToBottom() {
+    requestAnimationFrame(() => { chatWindow.scrollTop = chatWindow.scrollHeight; });
+  }
+
+  function showError(msg) {
+    errorBanner.textContent = msg;
+    errorBanner.classList.add("show");
+  }
+  function clearError() { errorBanner.classList.remove("show"); }
+
+  function autoResize() {
+    userInput.style.height = "auto";
+    userInput.style.height = Math.min(userInput.scrollHeight, 120) + "px";
+  }
+
+  function pulseSend() {
+    sendBtn.classList.remove("pulse");
+    void sendBtn.offsetWidth;
+    sendBtn.classList.add("pulse");
+  }
+
+  // ----------------------------------------------------------------
+  // API CALLS
+  // ----------------------------------------------------------------
+  async function callChatApi(text, history) {
+    const res = await fetch(CONFIG.BACKEND_BASE_URL + CONFIG.CHAT_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history, lang: currentLang })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("Server returned " + res.status));
+    return data.reply;
+  }
+
+  async function callImageApi(prompt) {
+    const res = await fetch(CONFIG.BACKEND_BASE_URL + CONFIG.IMAGE_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
+    });
+    if (!res.ok) throw new Error("Server returned " + res.status);
+    const data = await res.json();
+    return data.imageUrl;
+  }
+
+  // ----------------------------------------------------------------
+  // ACTIONS
+  // ----------------------------------------------------------------
+  async function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text || isLoading) return;
+    clearError();
+    pulseSend();
+
+    let conv = activeConversation();
+    if (!conv) conv = createConversation(null);
+
+    if (conv.messages.length === 0) {
+      conv.title = text.slice(0, 28) + (text.length > 28 ? "…" : "");
+    }
+
+    const userMsg = { text, isUser: true };
+    conv.messages.push(userMsg);
+    if (conv.messages.length === 1) {
+      chatWindow.innerHTML = "";
+    }
+    appendMessageEl(userMsg);
+    userInput.value = "";
+    autoResize();
+    renderSuggestions();
+    renderSidebarLists();
+    scheduleSave();
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    showTyping();
+
+    try {
+      if (imageMode) {
+        const imageUrl = await callImageApi(text);
+        const msg = { text: t().imageCaption, isUser: false, imageUrl };
+        conv.messages.push(msg);
+        hideTyping();
+        appendMessageEl(msg);
+      } else {
+        const history = conv.messages.filter(m => m.isUser).slice(-10).map(m => m.text);
+        const reply = await callChatApi(text, history);
+        const msg = { text: reply, isUser: false };
+        conv.messages.push(msg);
+        hideTyping();
+        appendMessageEl(msg);
+      }
+    } catch (err) {
+      hideTyping();
+      if (CONFIG.DEMO_MODE_FALLBACK && !imageMode) {
+        const msg = { text: t().demoReply(text), isUser: false };
+        conv.messages.push(msg);
+        appendMessageEl(msg);
+        showError(t().errBackend);
+      } else {
+        showError(t().errRequest(err.message));
+      }
+    } finally {
+      isLoading = false;
+      sendBtn.disabled = false;
+      scheduleSave();
+    }
+  }
+
+  function toggleMode() {
+    imageMode = !imageMode;
+    modeToggle.classList.toggle("chat", !imageMode);
+    modeToggle.classList.toggle("image", imageMode);
+    userInput.placeholder = imageMode ? t().placeholderImage : t().placeholderChat;
+  }
+
+  // ----------------------------------------------------------------
+  // EVENTS
+  // ----------------------------------------------------------------
+  sendBtn.addEventListener("click", sendMessage);
+  userInput.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  userInput.addEventListener("input", autoResize);
+  userInput.addEventListener("focus", () => inputShell.classList.add("focused"));
+  userInput.addEventListener("blur", () => inputShell.classList.remove("focused"));
+  modeToggle.addEventListener("click", toggleMode);
+
+  // ----------------------------------------------------------------
+  // INIT
+  // ----------------------------------------------------------------
+  populateLangSelect();
+  applyLanguage();
+
+  (async function init() {
+    const loaded = await loadState();
+    if (!loaded) {
+      createConversation(null);
+    } else {
+      activeConversationId = conversations[0].id;
+    }
+    renderSidebarLists();
+    renderActiveConversation();
+  })();
+</script>
+
+</body>
+</html>
