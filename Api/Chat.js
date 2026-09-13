@@ -1,2 +1,0 @@
-- `api/chat.js` — serverless function, calls Claude for chat replies
-- `api/generate-image.js` — placeholder, wire up your chosen image API
