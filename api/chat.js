@@ -43,6 +43,10 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+  console.error("Anthropic API error:", data);
+  return res.status(500).json({ error: data?.error?.message || "Anthropic API error" });
+}
     const reply = data?.content?.[0]?.text ?? "Sorry, I couldn't generate a reply.";
     return res.status(200).json({ reply });
   } catch (err) {
